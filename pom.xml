@@ -33,6 +33,13 @@
             <version>0.3-SNAPSHOT</version>
         </dependency>
         
+        <!-- Jogl -->
+        <dependency>
+            <groupId>net.java.dev.jogl</groupId>
+            <artifactId>jogl-linux-i586</artifactId>
+            <version>1.1.1-rc6</version>
+        </dependency>
+        
         <!-- JUnit -->
         <dependency>
             <groupId>junit</groupId>
@@ -62,9 +69,54 @@
                     <target>1.6</target>
                 </configuration>
             </plugin> 
+            
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>unpack-dependencies</id>
+                        <phase>package</phase>
+                        <goals>
+                          <goal>unpack-dependencies</goal>
+                        </goals>
+                        <configuration>
+                            <includes>**/*.so,**/*.dll</includes>
+                            <outputDirectory>${project.build.directory}/lib</outputDirectory>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
                 
         </plugins>
     </build>
+    
+    <repositories>
+    
+        <!-- Coral Reef Official Maven Repository -->
+        <repository>
+            <id>atom</id>
+            <name>Coral Reef Official Repository</name>
+            <layout>default</layout>
+            <url>http://graniec.pl:8081/nexus/content/repositories/releases/</url>
+        </repository>
+        
+        <!-- Coral Reef 3rd Party -->
+        <repository>
+            <id>atom-3rd</id>
+            <name>Coral Reef 3rd Party</name>
+            <layout>default</layout>
+            <url>http://graniec.pl:8081/nexus/content/repositories/thirdparty/</url>
+        </repository>
+
+        <!-- Java.net Repository -->
+        <repository>
+            <id>java.net</id>
+            <layout>default</layout>
+            <url>http://download.java.net/maven/2/</url>
+        </repository>
+        
+    </repositories>
     
 </project>
 

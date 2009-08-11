@@ -3,11 +3,20 @@ package pl.graniec.balldefender.physics;
 import java.util.LinkedList;
 import java.util.List;
 
+import pl.graniec.coralreef.geometry.Angle;
 import pl.graniec.coralreef.geometry.Point2;
 import pl.graniec.coralreef.geometry.Segment;
 import pl.graniec.coralreef.geometry.Vector2;
 
 public class Ball {
+	
+	class BounceResult {
+		float vx, vy;
+		float x, y;
+		
+		Point2 bouncePoint;
+		Vector2 momentVector;
+	}
 	
 	private final World world;
 	
@@ -16,6 +25,8 @@ public class Ball {
 	float x, y;
 	
 	float vx, vy;
+	
+	Point2 lastIPoint = null;
 	
 	
 	public Ball(World world) {
@@ -29,43 +40,62 @@ public class Ball {
 		
 		// target position
 		final float tx = x + vx * timeChange;
-		final float ty = x + vy * timeChange;
+		final float ty = y + vy * timeChange;
 		
-		final Segment moveSegment = new Segment(new Point2(x, y), new Point2(tx, ty));
+//		final Segment moveSegment = new Segment(new Point2(x, y), new Point2(tx, ty));
 		
 		boolean bounced;
+		boolean positionSet = false;
+		
+		Point2 position = new Point2(x, y);
+		Vector2 movement = new Vector2(vx, vy).multiply(timeChange);
 		
 		do {
 			bounced = false;
 			
 			for (Resistor r : world.resistors) {
-				if(bounce(moveSegment, r)) {
+				
+				final BounceResult bounceResult = bounce(position, movement, r);
+				
+				if (bounceResult != null) {
+					
+					x = bounceResult.x;
+					y = bounceResult.y;
+					vx = bounceResult.vx * (1000f / timeElapsed);
+					vy = bounceResult.vy * (1000f / timeElapsed);
+					
+					position = bounceResult.bouncePoint;
+					movement = bounceResult.momentVector;
+					
 					bounced = true;
-					continue;
+					positionSet = true;
+					
+					break;
 				}
 			}
 		} while (bounced);
 		
-		
+		if (!positionSet) {
+			x = tx;
+			y = ty;
+		}
 	}
 
 
-	enum BounceSide {
-		LEFT,
-		RIGHT
+	/**
+	 * Calculates the angle difference from <code>moveVector</code> to <code>moveSegment</code>
+	 * from -180 to 180 in degrees.
+	 * 
+	 * @param moveVector
+	 * @param resistorVector
+	 * 
+	 * @return Vectors angle difference.
+	 */
+	final float getAngleDiff(Vector2 moveVector, Vector2 resistorVector) {
+		return Angle.fromDegrees(moveVector.angle()).degreeDifference(Angle.fromDegrees(resistorVector.angle()));
 	}
 	
-	final BounceSide bounceSide(Point2 startPoint, Vector2 moveVector, Segment resistorSegment) {
-		final float moveVectorAngle = moveVector.angle();
-		final float resistorSegmentAngle = Vector2.angle(
-				resistorSegment.x2 - resistorSegment.x1,
-				resistorSegment.y2 - resistorSegment.y1
-		);
-		
-		
-	}
-	
-	Segment bounce(Point2 startPoint, Vector2 moveVector, Resistor r) {
+	BounceResult bounce(Point2 startPoint, Vector2 moveVector, Resistor r) {
 		
 		// convert points to segments
 		final List<Segment> segments = new LinkedList<Segment>();
@@ -90,7 +120,7 @@ public class Ball {
 		// find the closest one
 		Point2 closestPoint = null;
 		float closestDistance = 0;
-		float angle = 0;
+		Vector2 segmentVector = null;
 		
 		final Segment moveSegment = new Segment(
 				startPoint,
@@ -98,32 +128,53 @@ public class Ball {
 		); 
 		
 		for (Segment s : segments) {
+			
 			final Point2 iPoint = moveSegment.intersectionPoint(s);
 			
 			if (iPoint != null) {
+				
+				if (lastIPoint != null && lastIPoint.distanceTo(iPoint) < 0.1) {
+					continue;
+				}
+				
 				final float iDistance = startPoint.distanceTo(iPoint);
 				if (closestPoint == null || closestDistance > iDistance) {
 					closestPoint = iPoint;
 					closestDistance = iDistance;
-					angle = Point2.angle(s.x2 - s.x1, s.y2 - s.y1);
+					segmentVector = new Vector2(s.x2 - s.x1, s.y2 - s.y1);
 				}
 			}
 		}
 		
 		// if there is closest bounce point then make the bounce
 		if (closestPoint != null) {
-			float moveAngle = Point2.angle(moveSegment.x2 - moveSegment.x1, moveSegment.y2 - moveSegment.y1);
 			
-			angle += 180;
-			moveAngle += 180;
+			lastIPoint = closestPoint;
 			
-			angle %= 180;
-			moveAngle %= 180;
+			final float angleDiff = getAngleDiff(moveVector, segmentVector);
 			
-			final float diff = angle - moveAngle;
-			final Vector2 directionVector = new Vector2(moveAngle + diff).multiply(moveSegment.length() - closestDistance); 
+			// calculate new angle
+			final float newAngle = segmentVector.angle() + angleDiff;
 			
-			return new Segment(closestPoint, new Point2(directionVector.x, directionVector.y));
+			// build moment vector (that will point to next position)
+			// and ordinary move vector
+			final Vector2 momentVector = new Vector2(newAngle);
+			momentVector.multiply(moveSegment.length() - closestDistance);
+			
+			final Vector2 ordinaryVector = new Vector2(newAngle);
+			ordinaryVector.multiply(moveVector.length());
+			
+			final BounceResult result = new BounceResult();
+			
+			result.x = closestPoint.x + momentVector.x;
+			result.y = closestPoint.y + momentVector.y;
+			result.vx = ordinaryVector.x;
+			result.vy = ordinaryVector.y;
+			
+			result.bouncePoint = closestPoint;
+			result.momentVector = momentVector;
+			
+			return result;
 		}
 		
 		return null;

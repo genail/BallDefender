@@ -9,4 +9,10 @@ public class World {
 	
 	final List<Ball> balls = new LinkedList<Ball>();
 	
+	public void update(int elapsedTime) {
+		for (Ball b : balls) {
+			b.update(elapsedTime);
+		}
+	}
+	
 }
